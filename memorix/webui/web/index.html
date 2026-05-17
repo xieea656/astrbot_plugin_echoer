@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>A_Memorix | 知识全景图</title>
+    <title>Echoer | 知识全景图</title>
     <!-- Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1161,7 +1161,7 @@
         </div>
 
         <p style="text-align: center; color: var(--accent-secondary); font-size: 0.75rem; border-top: 1px solid var(--glass-border); padding-top: 16px;">
-          A_Memorix Panorama View v1.3
+          Echoer Panorama View v1.3
         </p>
       </div>
 
@@ -2190,17 +2190,15 @@
         const newId = document.getElementById("rename-input").value.trim();
         if (!newId) return showToast("请输入名称");
         try {
-          const pos = network.getPositions([oldId])[oldId];
           await axios.put("/api/node/rename", { old_id: oldId, new_id: newId });
           showToast("修订成功");
-
-          // Optimistically update or just reload. Since loadData is now incremental,
-          // re-fetching is safe.
-          await loadData();
+          // 增量更新：直接修改 DataSet，不触发全量重载
+          nodes.remove(oldId);
+          nodes.add({ id: newId, label: newId });
           closePanel();
-          if (nodes.get(newId)) {
-            focusNode(newId);
-          }
+          setTimeout(() => {
+            if (nodes.get(newId)) focusNode(newId);
+          }, 200);
         } catch (e) {
           showToast("操作异常");
         }
@@ -2258,7 +2256,27 @@
         try {
           await axios.post("/api/node", { node_id: name });
           showToast("实体已同步");
-          loadData();
+          // 增量添加节点到当前视口中心附近，避免全量重载
+          if (!nodes.get(name)) {
+            let x, y;
+            if (network) {
+              const viewPos = network.getViewPosition();
+              // 在视口中心附近 ±50px 随机偏移
+              x = viewPos.x + (Math.random() - 0.5) * 100;
+              y = viewPos.y + (Math.random() - 0.5) * 100;
+            } else {
+              x = (Math.random() - 0.5) * 200;
+              y = (Math.random() - 0.5) * 200;
+            }
+            const themeCfg = THEME_CONFIG[THEMES[currentThemeIdx]];
+            nodes.add({
+              id: name,
+              label: name,
+              x: x,
+              y: y,
+              font: { color: themeCfg.node.font },
+            });
+          }
           closePanel();
         } catch (e) {
           showToast("同步异常");
@@ -2280,7 +2298,19 @@
             predicate,
           });
           showToast("关系层已就绪");
-          loadData();
+          // 增量添加边，避免全量重载
+          const edgeId = source + "|" + (predicate || "relate") + "|" + target;
+          if (!edges.get(edgeId)) {
+            const themeCfg = THEME_CONFIG[THEMES[currentThemeIdx]];
+            // 确保两端节点存在（可能因 LOD 过滤被隐藏）
+            if (!nodes.get(source)) {
+              nodes.add({ id: source, label: source, font: { color: themeCfg.node.font } });
+            }
+            if (!nodes.get(target)) {
+              nodes.add({ id: target, label: target, font: { color: themeCfg.node.font } });
+            }
+            edges.add({ id: edgeId, from: source, to: target, title: predicate || "", arrows: "to" });
+          }
           closePanel();
         } catch (e) {
           showToast("建立失败");
@@ -2300,7 +2330,15 @@
             predicate: pre,
           });
           showToast("快速关联成功");
-          loadData();
+          // 增量添加边，保留 renderNodeRelations 刷新面板
+          const edgeId = cur + "|" + (pre || "relate") + "|" + tgt;
+          if (!edges.get(edgeId)) {
+            const themeCfg = THEME_CONFIG[THEMES[currentThemeIdx]];
+            if (!nodes.get(tgt)) {
+              nodes.add({ id: tgt, label: tgt, font: { color: themeCfg.node.font } });
+            }
+            edges.add({ id: edgeId, from: cur, to: tgt, title: pre || "", arrows: "to" });
+          }
           renderNodeRelations(cur);
         } catch (e) {
           showToast("失败");

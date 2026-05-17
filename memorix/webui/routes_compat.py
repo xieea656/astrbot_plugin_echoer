@@ -73,7 +73,7 @@ class MemorixServer:
         self.plugin = plugin_instance
         self.host = host
         self.port = port
-        self.app = FastAPI(title="A_Memorix 可视化编辑器")
+        self.app = FastAPI(title="Echoer 可视化编辑器")
         self.server_thread = None
         self._server = None
         self._server = None
@@ -1275,7 +1275,7 @@ class MemorixServer:
 
     def run(self):
         """运行服务器 (阻塞)"""
-        logger.info(f"正在启动 A_Memorix WebUI，地址：{self.host}:{self.port}")
+        logger.info(f"正在启动 Echoer WebUI，地址：{self.host}:{self.port}")
         config = uvicorn.Config(self.app, host=self.host, port=self.port, log_level="info")
         self._server = uvicorn.Server(config)
         self._server.run()
@@ -1294,4 +1294,4 @@ class MemorixServer:
             self._server.should_exit = True
         if self.server_thread:
             self.server_thread.join(timeout=2)
-            logger.info("A_Memorix WebUI 已停止")
+            logger.info("Echoer WebUI 已停止")

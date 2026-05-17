@@ -6,7 +6,6 @@ extend-exclude = [
   "memorix/core",
   "memorix/webui/routes_compat.py",
   "memorix/webui/web",
-  "web"
 ]
 
 [tool.ruff.lint]

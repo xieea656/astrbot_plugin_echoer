@@ -1,4 +1,4 @@
-"""Query service wrapper."""
+"""Query service facade with caching via ScopeRuntime.get_service()."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ from ..app_context import ScopeRuntimeManager
 class QueryService:
     def __init__(self, runtime_manager: ScopeRuntimeManager):
         self.runtime_manager = runtime_manager
+
+    async def _get(self, scope_key: str) -> BaseQueryService:
+        runtime = await self.runtime_manager.get_runtime(scope_key)
+        return runtime.get_service(BaseQueryService)
 
     async def search(
         self,
@@ -25,15 +29,9 @@ class QueryService:
         strict_source: bool = False,
         enforce_chat_filter: bool = False,
     ) -> Dict[str, Any]:
-        runtime = await self.runtime_manager.get_runtime(scope_key)
-        return await BaseQueryService(runtime.context).search(
-            query=query,
-            top_k=top_k,
-            stream_id=stream_id,
-            group_id=group_id,
-            user_id=user_id,
-            source=source,
-            strict_source=strict_source,
+        return await (await self._get(scope_key)).search(
+            query=query, top_k=top_k, stream_id=stream_id, group_id=group_id,
+            user_id=user_id, source=source, strict_source=strict_source,
             enforce_chat_filter=enforce_chat_filter,
         )
 
@@ -52,18 +50,10 @@ class QueryService:
         user_id: Optional[str] = None,
         enforce_chat_filter: bool = False,
     ) -> Dict[str, Any]:
-        runtime = await self.runtime_manager.get_runtime(scope_key)
-        return await BaseQueryService(runtime.context).time_search(
-            query=query,
-            time_from=time_from,
-            time_to=time_to,
-            person=person,
-            source=source,
-            top_k=top_k,
-            stream_id=stream_id,
-            group_id=group_id,
-            user_id=user_id,
-            enforce_chat_filter=enforce_chat_filter,
+        return await (await self._get(scope_key)).time_search(
+            query=query, time_from=time_from, time_to=time_to, person=person,
+            source=source, top_k=top_k, stream_id=stream_id, group_id=group_id,
+            user_id=user_id, enforce_chat_filter=enforce_chat_filter,
         )
 
     async def auto_search(
@@ -79,18 +69,11 @@ class QueryService:
         strict_source: bool = False,
         enforce_chat_filter: bool = False,
     ) -> Dict[str, Any]:
-        runtime = await self.runtime_manager.get_runtime(scope_key)
-        return await BaseQueryService(runtime.context).auto_search(
-            query=query,
-            top_k=top_k,
-            stream_id=stream_id,
-            group_id=group_id,
-            user_id=user_id,
-            source=source,
-            strict_source=strict_source,
+        return await (await self._get(scope_key)).auto_search(
+            query=query, top_k=top_k, stream_id=stream_id, group_id=group_id,
+            user_id=user_id, source=source, strict_source=strict_source,
             enforce_chat_filter=enforce_chat_filter,
         )
 
     async def stats(self, *, scope_key: str) -> Dict[str, Any]:
-        runtime = await self.runtime_manager.get_runtime(scope_key)
-        return await BaseQueryService(runtime.context).stats()
+        return await (await self._get(scope_key)).stats()

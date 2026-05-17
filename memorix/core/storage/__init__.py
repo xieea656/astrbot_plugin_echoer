@@ -14,6 +14,7 @@ from .type_detection import (
     detect_knowledge_type,
     get_type_from_user_input,
 )
+from .vector_numpy_store import NumpyCompatVectorStore
 
 __all__ = [
     "VectorStore",
@@ -28,4 +29,5 @@ __all__ = [
     "get_type_display_name",
     "detect_knowledge_type",
     "get_type_from_user_input",
+    "NumpyCompatVectorStore",
 ]

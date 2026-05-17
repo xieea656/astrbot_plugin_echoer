@@ -13,7 +13,7 @@ from ..core.retrieval.threshold import DynamicThresholdFilter, ThresholdConfig, 
 from ..core.storage import GraphStore, MetadataStore, QuantizationType, SparseMatrixFormat, VectorStore
 from ..core.utils.person_profile_service import PersonProfileService
 
-from ..storage.vector_numpy_store import NumpyCompatVectorStore
+from ..core.storage.vector_numpy_store import NumpyCompatVectorStore
 from astrbot.api import logger
 from .context import AppContext
 from .settings import AppSettings, resolve_openapi_endpoint_config

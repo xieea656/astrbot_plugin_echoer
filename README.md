@@ -1,28 +1,30 @@
 <div align="center">
 
-![:name](https://count.getloli.com/@:astrbot_plugin_memorix?name=%3Aastrbot_plugin_memorix&theme=miku&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
+![:name](https://count.getloli.com/@:astrbot_plugin_echoer?name=%3Aastrbot_plugin_echoer&theme=miku&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
 
-# Memorix
+# Echoer
 
 **为 AstrBot 打造的完整记忆系统插件**
 
-图谱 + 向量混合检索 · 记忆生命周期管理 · 人物画像 · 总结导入 · 内嵌 WebUI
+图谱 + 向量混合检索 · 记忆生命周期管理 · AI 主动记忆 · 人物画像 · 总结导入 · 内嵌 WebUI
 
 [![AstrBot](https://img.shields.io/badge/AstrBot-%3E%3D4.16-blue)](https://github.com/Soulter/AstrBot)
-[![Version](https://img.shields.io/badge/version-v0.1.1-green)]()
+[![Version](https://img.shields.io/badge/version-v1.0.0-green)]()
 [![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram%20%7C%20Discord-orange)]()
+[![Author](https://img.shields.io/badge/author-爱丽丝-pink)]()
 
 </div>
 
 ---
 
-## 为什么选择 Memorix？
+## 为什么选择 Echoer？
 
-| | 传统方案 | Memorix |
+| | 传统方案 | Echoer |
 |---|---|---|
 | **存储** | 单一向量库或纯文本缓存 | 段落向量 + 实体图谱 + 时间线三维存储 |
 | **检索** | 仅语义相似度 | 向量 + BM25 稀疏召回 + 图谱 PageRank 重排 |
 | **生命周期** | 记忆只增不减 | 自动衰减 → 冻结 → 剪枝，支持保护/强化/恢复 |
+| **主动记忆** | 被动等待总结 | AI 自主判断并调用 memorize 工具写入 |
 | **可观测性** | 黑盒 | 内嵌 WebUI，图谱可视化、来源追溯、回收站 |
 | **部署要求** | 依赖外部模型/服务 | 零外部依赖可启动，embedding 按需开启 |
 
@@ -31,6 +33,10 @@
 ### 混合检索引擎
 
 采用双路检索架构，向量路径（FAISS / Numpy 余弦）与稀疏路径（BM25 + Jieba 中文分词）并行召回，通过加权 RRF 融合排序。可选启用 Personalized PageRank 利用图谱拓扑进行二次重排，无需额外 reranker 模型。
+
+### AI 主动记忆
+
+插件向 LLM 注册 `memorize` 工具，AI 可以在对话中自主判断何时需要记住重要信息——用户的个人信息、偏好、计划、关键事实、决策等——并直接写入向量库和图谱存储，无需等待后台总结。重要性 1-10 可调，影响初始权重。
 
 ### 记忆生命周期
 
@@ -78,10 +84,13 @@
 ③ 检索注入 ── LLM 请求时混合检索相关记忆，注入 System Prompt
   │
   ▼
-④ 响应回写 ── AI 回复同步写入记忆
+④ AI 主动记忆 ── AI 自主调用 memorize 工具写入重要信息（可选）
   │
   ▼
-⑤ 后台维护 ── 衰减 / 冻结 / 剪枝 / 画像刷新 / 向量持久化
+⑤ 响应回写 ── AI 回复同步写入记忆
+  │
+  ▼
+⑥ 后台维护 ── 衰减 / 冻结 / 剪枝 / 画像刷新 / 向量持久化
 ```
 
 ## 本插件基于 A_Dawn 的 A_Memorix 设计理念开发，并针对 AstrBot 做了完整适配。
@@ -90,10 +99,10 @@
 
 ### 安装
 
-在 AstrBot 插件管理中搜索 `Memorix` 安装，或通过仓库地址安装：
+在 AstrBot 插件管理中搜索 `Echoer` 安装，或通过仓库地址安装：
 
 ```
-https://github.com/exynos967/astrbot_plugin_memorix
+https://github.com/exynos967/astrbot_plugin_echoer
 ```
 
 ### 最小配置（零配置即可运行）
@@ -152,7 +161,7 @@ https://github.com/exynos967/astrbot_plugin_memorix
 ## 存储架构
 
 ```
-data/plugin_data/astrbot_plugin_memorix/scopes/<scope_key>/
+data/plugin_data/astrbot_plugin_echoer/scopes/<scope_key>/
 ├── vectors/      # FAISS / Numpy 向量索引
 ├── graph/        # SciPy 稀疏矩阵图谱
 └── metadata/     # SQLite 元数据（段落/实体/关系/对话/画像/任务）
@@ -240,7 +249,7 @@ data/plugin_data/astrbot_plugin_memorix/scopes/<scope_key>/
 |---|---|---|---|
 | `summarization.enabled` | bool | `true` | 启用总结导入 |
 | `summarization.source_mode` | string | `hybrid` | 总结来源模式：`transcript` / `astrbot` / `hybrid`（优先 AstrBot） |
-| `summarization.context_length` | int | `50` | 总结上下文长度 |
+| `summarization.context_length` | int | `30` | 总结上下文长度 |
 | `summarization.default_knowledge_type` | string | `narrative` | 总结知识类型（narrative / factual / mixed / structured / auto） |
 
 ### 定时总结（schedule）
@@ -338,6 +347,13 @@ data/plugin_data/astrbot_plugin_memorix/scopes/<scope_key>/
 1. `/mem status`，确认当前返回的 `scope`
 2. `/mem ui`，让 WebUI 切换到当前对话范围
 3. 重新打开或刷新 WebUI 页面
+
+</details>
+
+<details>
+<summary>AI 主动记忆（memorize 工具）什么时候触发？</summary>
+
+AI 会在对话中自行判断。当用户透露个人信息（姓名、偏好、计划等）、做出重要决策、或表达关键事实时，AI 会自动调用 memorize 工具写入长期记忆。你无需手动触发，也无需担心琐碎的闲聊被记住。
 
 </details>
 

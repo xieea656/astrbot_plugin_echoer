@@ -66,12 +66,26 @@ class LocalEmbeddingAdapter:
         return vec.astype(np.float32)
 
 
-@dataclass(slots=True)
+@dataclass
 class ScopeRuntime:
     scope_key: str
     settings: AppSettings
     context: Any
     task_manager: TaskManager
+    _service_cache: dict = None  # type: ignore
+
+    def __post_init__(self):
+        if self._service_cache is None:
+            object.__setattr__(self, "_service_cache", {})
+
+    def get_service(self, svc_class: type):
+        """Lazy-create and cache an amemorix service instance on this runtime."""
+        name = svc_class.__name__
+        cached = self._service_cache.get(name)
+        if cached is None:
+            cached = svc_class(self.context)
+            self._service_cache[name] = cached
+        return cached
 
 class ScopeRuntimeManager:
     def __init__(

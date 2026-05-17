@@ -367,7 +367,7 @@
         "type": "int",
         "description": "总结上下文消息条数",
         "hint": "每次总结时取最近多少条消息作为 LLM 的输入上下文。数值越大总结越全面但消耗更多 Token。建议范围 20~200，根据你使用的 LLM 上下文窗口大小和费用预算调整。",
-        "default": 50
+        "default": 30
       },
       "default_knowledge_type": {
         "type": "string",
@@ -396,14 +396,14 @@
           "min_new_messages": {
             "type": "int",
             "description": "触发自动总结所需的最少新增消息数",
-            "hint": "自上次总结后，当前会话至少新增多少条 transcript 消息才允许自动总结。值越大越保守，默认 12。",
-            "default": 12
+            "hint": "自上次总结后，当前会话至少新增多少条 transcript 消息才允许自动总结。值越大越保守，默认 14。",
+            "default": 14
           },
           "cooldown_minutes": {
             "type": "int",
             "description": "自动总结冷却时间（分钟）",
-            "hint": "同一会话两次自动总结之间至少间隔多久。用于避免高频聊天反复触发总结，默认 30 分钟。",
-            "default": 30
+            "hint": "同一会话两次自动总结之间至少间隔多久。用于避免高频聊天反复触发总结，默认 15 分钟。",
+            "default": 15
           }
         }
       }

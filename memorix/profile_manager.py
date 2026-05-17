@@ -1,4 +1,4 @@
-"""Person profile wrapper service."""
+"""Person profile manager with autonomy-aware policy and registry logic."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import json
 import time
 from typing import Any, Dict, Optional
 
-from ..amemorix.services.person_profile_service import PersonProfileApiService
-from ..app_context import ScopeRuntimeManager
+from .amemorix.services.person_profile_service import PersonProfileApiService
+from .app_context import ScopeRuntimeManager
 
 
-class ProfileService:
+class ProfileManager:
     def __init__(self, runtime_manager: ScopeRuntimeManager):
         self.runtime_manager = runtime_manager
 
@@ -56,7 +56,7 @@ class ProfileService:
         sender_name: str,
         updated_at: float,
     ) -> list[Dict[str, Any]]:
-        aliases = ProfileService._parse_group_aliases(existing)
+        aliases = ProfileManager._parse_group_aliases(existing)
         name = str(sender_name or "").strip()
         if not name:
             return aliases

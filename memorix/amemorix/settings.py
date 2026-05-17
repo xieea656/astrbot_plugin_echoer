@@ -147,14 +147,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "source_mode": "hybrid",
         "chat_provider_id": "",
         "model_name": "",
-        "context_length": 50,
+        "context_length": 30,
         "include_personality": True,
         "default_knowledge_type": "narrative",
         "auto_import": {
             "enabled": True,
             "after_reply_only": True,
-            "min_new_messages": 12,
-            "cooldown_minutes": 30,
+            "min_new_messages": 14,
+            "cooldown_minutes": 15,
         },
     },
     "schedule": {
