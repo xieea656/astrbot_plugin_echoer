@@ -76,7 +76,6 @@ class MemorixServer:
         self.app = FastAPI(title="Echoer 可视化编辑器")
         self.server_thread = None
         self._server = None
-        self._server = None
         self.should_exit = False
         
         # 缓存 relations predicate map
@@ -226,7 +225,7 @@ class MemorixServer:
                     
                 except Exception as e:
                     logger.error(f"Get graph by source failed: {e}")
-                    raise HTTPException(status_code=500, detail=str(e))
+                    raise HTTPException(status_code=500, detail="Internal server error")
 
             # --- 分支 2: 全量图谱 (现有逻辑) ---
             if self.plugin.graph_store is None:
@@ -571,7 +570,7 @@ class MemorixServer:
                 return {"success": True, "new_weight": new_weight}
             except Exception as e:
                 logger.error(f"Update weight failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.delete("/api/node")
         async def delete_node(data: NodeDelete):
@@ -593,7 +592,7 @@ class MemorixServer:
                 return {"success": True, "deleted_count": deleted_count}
             except Exception as e:
                 logger.error(f"Delete node failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.delete("/api/edge")
         async def delete_edge(data: EdgeDelete):
@@ -613,12 +612,12 @@ class MemorixServer:
                 return {"success": True}
             except Exception as e:
                 logger.error(f"Delete edge failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/node")
         async def create_node(data: NodeCreate):
             """创建节点"""
-            print(f"DEBUG: graph_store={self.plugin.graph_store}")
+            logger.debug(f"graph_store={self.plugin.graph_store}")
             if self.plugin.graph_store is None:
                 raise HTTPException(status_code=503, detail="Graph store not initialized")
             
@@ -635,7 +634,7 @@ class MemorixServer:
                 return {"success": True, "added_count": added_count, "node_id": data.node_id}
             except Exception as e:
                 logger.error(f"Create node failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/edge")
         async def create_edge(data: EdgeCreate):
@@ -668,7 +667,7 @@ class MemorixServer:
                 return {"success": True, "added_count": added_count, "predicate": data.predicate}
             except Exception as e:
                 logger.error(f"Create edge failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.put("/api/node/rename")
         async def rename_node(data: NodeRename):
@@ -712,7 +711,7 @@ class MemorixServer:
                 raise
             except Exception as e:
                 logger.error(f"Rename node failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/source/list")
         async def list_sources(data: SourceListRequest):
@@ -766,7 +765,7 @@ class MemorixServer:
                 
             except Exception as e:
                 logger.error(f"List sources failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/source/batch_delete")
         async def batch_delete_source(data: BatchSourceDeleteRequest):
@@ -827,7 +826,7 @@ class MemorixServer:
                 
             except Exception as e:
                 logger.error(f"Batch source delete failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
         @self.app.delete("/api/source")
         async def delete_source(data: SourceDeleteRequest):
             """删除来源段落（两阶段提交）"""
@@ -879,7 +878,7 @@ class MemorixServer:
                 
             except Exception as e:
                 logger.error(f"Delete source failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         # --- V5 记忆管理端点 ---
         
@@ -926,10 +925,9 @@ class MemorixServer:
 
             try:
                 if data.type == "entity":
-                    # 复活实体
-                    cursor = self.plugin.metadata_store._conn.cursor()
-                    cursor.execute("UPDATE entities SET is_deleted=0, deleted_at=NULL WHERE hash=?", (data.hash,))
-                    self.plugin.metadata_store._conn.commit()
+                    result = self.plugin.metadata_store.restore_entity(data.hash)
+                    if not result:
+                        raise HTTPException(status_code=404, detail="Entity not found in trash")
                     return {"success": True, "type": "entity", "hash": data.hash}
 
                 # relation: 先从回收站恢复元数据，再回灌图边
@@ -955,7 +953,7 @@ class MemorixServer:
                 raise
             except Exception as e:
                 logger.error(f"Restore failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/memory/reinforce")
         async def reinforce_memory(data: MemoryActionRequest):
@@ -982,7 +980,7 @@ class MemorixServer:
                 return {"success": True}
             except Exception as e:
                 logger.error(f"Reinforce failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/memory/freeze")
         async def freeze_memory(data: MemoryActionRequest):
@@ -1010,7 +1008,7 @@ class MemorixServer:
                 return {"success": True}
             except Exception as e:
                  logger.error(f"Freeze failed: {e}")
-                 raise HTTPException(status_code=500, detail=str(e))
+                 raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/memory/protect")
         async def protect_memory(data: MemoryProtectRequest):
@@ -1037,7 +1035,7 @@ class MemorixServer:
                 return {"success": True}
             except Exception as e:
                  logger.error(f"Protect failed: {e}")
-                 raise HTTPException(status_code=500, detail=str(e))
+                 raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/person_profile/query")
         async def query_person_profile(data: PersonProfileQueryRequest):
@@ -1065,7 +1063,7 @@ class MemorixServer:
                 raise
             except Exception as e:
                 logger.error(f"Person profile query failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.get("/api/person_profile/list")
         async def list_person_profile_candidates(
@@ -1158,7 +1156,7 @@ class MemorixServer:
                 }
             except Exception as e:
                 logger.error(f"List person profile candidates failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/person_profile/override")
         async def save_person_profile_override(data: PersonProfileOverrideUpsertRequest):
@@ -1198,7 +1196,7 @@ class MemorixServer:
                 raise
             except Exception as e:
                 logger.error(f"Save person profile override failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.delete("/api/person_profile/override")
         async def delete_person_profile_override(data: PersonProfileOverrideDeleteRequest):
@@ -1217,7 +1215,7 @@ class MemorixServer:
                 raise
             except Exception as e:
                 logger.error(f"Delete person profile override failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.post("/api/save")
         async def manual_save():
@@ -1234,7 +1232,7 @@ class MemorixServer:
                 return {"success": True, "saved": saved_components}
             except Exception as e:
                 logger.error(f"Manual save failed: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.get("/api/config")
         async def get_config():
@@ -1285,7 +1283,7 @@ class MemorixServer:
         if self.server_thread and self.server_thread.is_alive():
             return
             
-        self.server_thread = threading.Thread(target=self.run, daemon=True)
+        self.server_thread = threading.Thread(target=self.run, daemon=False)
         self.server_thread.start()
         
     def stop(self):

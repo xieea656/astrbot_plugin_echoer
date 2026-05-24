@@ -5,7 +5,7 @@
 """
 
 import os
-import pickle
+import json
 import hashlib
 import shutil
 from pathlib import Path
@@ -511,8 +511,8 @@ class VectorStore:
                 "known_hashes": list(self._known_hashes),
             }
             
-            with atomic_write(data_dir / "vectors_metadata.pkl", "wb") as f:
-                pickle.dump(meta, f)
+            with atomic_write(data_dir / "vectors_metadata.json", "w") as f:
+                json.dump(meta, f)
                 
             logger.info("VectorStore saved.")
 
@@ -530,13 +530,23 @@ class VectorStore:
                 self._migrate_from_npy(npy_path, idx_path, data_dir)
                 return
 
-            meta_path = data_dir / "vectors_metadata.pkl"
+            meta_path = data_dir / "vectors_metadata.json"
             if not meta_path.exists():
-                logger.warning("No metadata found, initialized empty.")
-                return
-                
-            with open(meta_path, "rb") as f:
-                meta = pickle.load(f)
+                # Backward compat: try old pickle format
+                legacy_path = data_dir / "vectors_metadata.pkl"
+                if legacy_path.exists():
+                    import pickle
+                    with open(legacy_path, "rb") as f:
+                        meta = pickle.load(f)
+                    # Migrate to json immediately
+                    with open(meta_path, "w") as jf:
+                        json.dump(meta, jf)
+                else:
+                    logger.warning("No metadata found, initialized empty.")
+                    return
+            else:
+                with open(meta_path, "r") as f:
+                    meta = json.load(f)
                 
             if meta.get("vector_norm") != "l2":
                 logger.warning("Index IDMap2 version mismatch (L2 Norm), forcing rebuild...")
@@ -580,12 +590,19 @@ class VectorStore:
         except Exception:
             arr = np.load(npy_path)
             
-        meta_path = data_dir / "vectors_metadata.pkl"
+        meta_path = data_dir / "vectors_metadata.json"
+        if not meta_path.exists():
+            meta_path = data_dir / "vectors_metadata.pkl"  # backward compat
         old_ids = []
         if meta_path.exists():
-            with open(meta_path, "rb") as f:
-                m = pickle.load(f)
-                old_ids = m.get("ids", [])
+            if meta_path.suffix == ".json":
+                with open(meta_path, "r") as f:
+                    m = json.load(f)
+            else:
+                import pickle
+                with open(meta_path, "rb") as f:
+                    m = pickle.load(f)
+            old_ids = m.get("ids", [])
                 
         if len(arr) != len(old_ids):
             logger.error(f"Migration mismatch: arr {len(arr)} != ids {len(old_ids)}")

@@ -5,7 +5,7 @@
 """
 
 import hashlib
-import pickle
+import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -312,47 +312,42 @@ class EmbeddingManager:
         return final_embeddings
 
     def save_cache(self, cache_path: Optional[Union[str, Path]] = None) -> None:
-        """
-        保存缓存到磁盘
-
-        Args:
-            cache_path: 缓存文件路径（默认使用cache_dir/embeddings_cache.pkl）
-        """
         if cache_path is None:
             if self.cache_dir is None:
                 raise ValueError("未指定缓存目录")
-            cache_path = self.cache_dir / "embeddings_cache.pkl"
+            cache_path = self.cache_dir / "embeddings_cache.npz"
 
         cache_path = Path(cache_path)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._cache_lock:
-            with open(cache_path, "wb") as f:
-                pickle.dump(self._embedding_cache, f)
-
+            np.savez(str(cache_path), **self._embedding_cache)
             logger.info(f"缓存已保存: {cache_path} ({len(self._embedding_cache)} 条)")
 
     def load_cache(self, cache_path: Optional[Union[str, Path]] = None) -> None:
-        """
-        从磁盘加载缓存
-
-        Args:
-            cache_path: 缓存文件路径（默认使用cache_dir/embeddings_cache.pkl）
-        """
         if cache_path is None:
             if self.cache_dir is None:
                 raise ValueError("未指定缓存目录")
-            cache_path = self.cache_dir / "embeddings_cache.pkl"
+            cache_path = self.cache_dir / "embeddings_cache.npz"
 
         cache_path = Path(cache_path)
         if not cache_path.exists():
+            # Backward compat: try old pickle format
+            legacy_path = cache_path.with_suffix(".pkl")
+            if legacy_path.exists():
+                import pickle
+                with open(legacy_path, "rb") as f:
+                    self._embedding_cache = pickle.load(f)
+                # Migrate to npz immediately
+                np.savez(str(cache_path), **self._embedding_cache)
+                logger.info(f"缓存已迁移: {legacy_path} -> {cache_path}")
+                return
             logger.warning(f"缓存文件不存在: {cache_path}")
             return
 
         with self._cache_lock:
-            with open(cache_path, "rb") as f:
-                self._embedding_cache = pickle.load(f)
-
+            loaded = np.load(str(cache_path))
+            self._embedding_cache = {key: loaded[key] for key in loaded.files}
             logger.info(f"缓存已加载: {cache_path} ({len(self._embedding_cache)} 条)")
 
     def clear_cache(self) -> None:

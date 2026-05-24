@@ -15,7 +15,7 @@ from astrbot.api import logger
 DEFAULT_CONFIG: Dict[str, Any] = {
     "server": {"host": "0.0.0.0", "port": 8082, "workers": 1},
     "auth": {
-        "enabled": True,
+        "enabled": False,
         "write_tokens": [],
         "read_tokens": [],
         "protect_read_endpoints": False,

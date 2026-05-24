@@ -49,7 +49,7 @@ def make_memorize_handler(scope_key_getter, runtime_manager: Any, event_getter):
     Returns an async callable suitable for register_llm_tool().
     """
 
-    async def handler(content: str, knowledge_type: str = "auto", importance: float = 5.0) -> Dict[str, Any]:
+    async def handler(_event, content: str, knowledge_type: str = "auto", importance: float = 5.0) -> Dict[str, Any]:
         text = str(content or "").strip()
         if not text:
             return {"success": False, "message": "内容为空，无法记忆"}

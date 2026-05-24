@@ -4,7 +4,7 @@
 基于SciPy稀疏矩阵的知识图谱存储与计算。
 """
 
-import pickle
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Union, Tuple, List, Dict, Set, Any
@@ -1071,6 +1071,10 @@ class GraphStore:
             logger.debug(f"保存邻接矩阵: {matrix_path}")
 
         # 保存元数据
+        serializable_edge_map = {}
+        for (s_idx, t_idx), hashes in self._edge_hash_map.items():
+            serializable_edge_map[f"{s_idx},{t_idx}"] = sorted(hashes)
+
         metadata = {
             "nodes": self._nodes,
             "node_to_idx": self._node_to_idx,
@@ -1080,12 +1084,12 @@ class GraphStore:
             "total_edges_added": self._total_edges_added,
             "total_nodes_deleted": self._total_nodes_deleted,
             "total_edges_deleted": self._total_edges_deleted,
-            "edge_hash_map": dict(self._edge_hash_map), # 持久化 V5 映射 (将 defaultdict 转换为普通 dict)
+            "edge_hash_map": serializable_edge_map,
         }
 
-        metadata_path = data_dir / "graph_metadata.pkl"
-        with atomic_write(metadata_path, "wb") as f:
-            pickle.dump(metadata, f)
+        metadata_path = data_dir / "graph_metadata.json"
+        with atomic_write(metadata_path, "w") as f:
+            json.dump(metadata, f)
         logger.debug(f"保存元数据: {metadata_path}")
 
         logger.info(f"图存储已保存到: {data_dir}")
@@ -1108,12 +1112,22 @@ class GraphStore:
             raise FileNotFoundError(f"数据目录不存在: {data_dir}")
 
         # 加载元数据
-        metadata_path = data_dir / "graph_metadata.pkl"
+        metadata_path = data_dir / "graph_metadata.json"
         if not metadata_path.exists():
-            raise FileNotFoundError(f"元数据文件不存在: {metadata_path}")
-
-        with open(metadata_path, "rb") as f:
-            metadata = pickle.load(f)
+            # Backward compat: try old pickle format
+            legacy_path = data_dir / "graph_metadata.pkl"
+            if legacy_path.exists():
+                import pickle
+                with open(legacy_path, "rb") as f:
+                    metadata = pickle.load(f)
+                # Migrate to json immediately
+                with open(metadata_path, "w") as jf:
+                    json.dump(metadata, jf)
+            else:
+                raise FileNotFoundError(f"元数据文件不存在: {metadata_path}")
+        else:
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
 
         # 恢复状态，并通过规范化处理旧数据中的重复项
         self._nodes = metadata["nodes"]
@@ -1143,7 +1157,14 @@ class GraphStore:
         self._edge_hash_map = defaultdict(set)
         if edge_map_data:
             for k, v in edge_map_data.items():
-                self._edge_hash_map[k] = set(v) # 确保类型为 set
+                if isinstance(k, str) and "," in k:
+                    # New json format: "srcIdx,tgtIdx" -> (int, int)
+                    parts = k.split(",", 1)
+                    key = (int(parts[0]), int(parts[1]))
+                else:
+                    # Legacy pickle format: tuple key directly
+                    key = tuple(k) if not isinstance(k, tuple) else k
+                self._edge_hash_map[key] = set(v)
 
         # 加载邻接矩阵
         matrix_path = data_dir / "graph_adjacency.npz"

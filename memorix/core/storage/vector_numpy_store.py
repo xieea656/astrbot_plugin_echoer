@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pickle
+import json
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
@@ -20,7 +20,7 @@ class NumpyCompatVectorStore:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._backend = NumpyVectorBackend(dimension=self.dimension, data_dir=self.data_dir)
         self.min_train_threshold = 0
-        self._metadata_path = self.data_dir / "vectors_metadata.pkl"
+        self._metadata_path = self.data_dir / "vectors_metadata.json"
 
     @property
     def size(self) -> int:
@@ -42,8 +42,8 @@ class NumpyCompatVectorStore:
     def save(self) -> None:
         self._backend.save()
         payload = {"dimension": self.dimension, "backend": "numpy", "num_vectors": self.num_vectors}
-        with self._metadata_path.open("wb") as handle:
-            pickle.dump(payload, handle)
+        with self._metadata_path.open("w") as handle:
+            json.dump(payload, handle)
 
     def load(self) -> None:
         self._backend.load()

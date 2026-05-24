@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import datetime
 import socket
 import uuid
@@ -272,6 +273,7 @@ class EmbeddedWebUIServer:
 
         server.start()
         self._server = server
+        atexit.register(self.stop)
         self.state = WebUIServerState(
             scope_key=scope_key,
             host=host,

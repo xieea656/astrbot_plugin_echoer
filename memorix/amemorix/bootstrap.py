@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pickle
+import json
 from pathlib import Path
 from typing import Any, Dict
 
@@ -31,11 +31,19 @@ def _safe_float(value: Any, default: float) -> float:
         return default
 
 def _resolve_vector_dimension(settings: AppSettings, vectors_dir: Path) -> int:
-    metadata_path = vectors_dir / "vectors_metadata.pkl"
+    metadata_path = vectors_dir / "vectors_metadata.json"
+    if not metadata_path.exists():
+        # Backward compat: try old pickle format
+        metadata_path = vectors_dir / "vectors_metadata.pkl"
     if metadata_path.exists():
         try:
-            with metadata_path.open("rb") as f:
-                data = pickle.load(f)
+            if metadata_path.suffix == ".json":
+                with metadata_path.open("r") as f:
+                    data = json.load(f)
+            else:
+                import pickle
+                with metadata_path.open("rb") as f:
+                    data = pickle.load(f)
             dim = _safe_int(data.get("dimension"), 0)
             if dim > 0:
                 return dim

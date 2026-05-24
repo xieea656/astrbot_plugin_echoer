@@ -31,7 +31,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         if ctx is None:
             return await call_next(request)
 
-        enabled = bool(ctx.get_config("auth.enabled", True))
+        enabled = bool(ctx.get_config("auth.enabled", False))
         if not enabled:
             return await call_next(request)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import time
 from typing import Any, Dict, Optional
 
@@ -27,6 +28,10 @@ from .memorix.tasks.maintenance_scheduler import MaintenanceScheduler
 from .memorix.webui import EmbeddedWebUIServer
 
 
+_active_scope_key_var: contextvars.ContextVar[str] = contextvars.ContextVar("active_scope_key", default="")
+_active_event_var: contextvars.ContextVar[Any] = contextvars.ContextVar("active_event", default=None)
+
+
 @register("astrbot_plugin_echoer", "爱丽丝", "Echoer — 为 AstrBot 打造的完整记忆系统：图谱+向量混合检索，记忆生命周期管理，AI 主动记忆，内嵌 WebUI", "1.0.0")
 class MemorixPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -48,9 +53,6 @@ class MemorixPlugin(Star):
         self.maintenance_scheduler = MaintenanceScheduler(runtime_manager=self.runtime_manager)
         self.webui_server = EmbeddedWebUIServer(self.runtime_manager, self.config)
 
-        # Active memory: the most recent scope key for LLM tool routing
-        self._active_scope_key: str = ""
-        self._active_event: Any = None
 
     async def initialize(self):
         logger.info("[echoer] initialize start")
@@ -61,9 +63,9 @@ class MemorixPlugin(Star):
         plugin_self = self
 
         handler = make_memorize_handler(
-            scope_key_getter=lambda: plugin_self._active_scope_key,
+            scope_key_getter=lambda: _active_scope_key_var.get(),
             runtime_manager=plugin_self.runtime_manager,
-            event_getter=lambda: plugin_self._active_event,
+            event_getter=lambda: _active_event_var.get(),
         )
 
         try:
@@ -72,9 +74,13 @@ class MemorixPlugin(Star):
 
             StarTools.register_llm_tool(
                 name="memorize",
-                parameters=MEMORIZE_TOOL_DEFINITION["function"]["parameters"],
-                description=MEMORIZE_TOOL_DEFINITION["function"]["description"],
-                handler=handler,
+                func_args=[
+                    {"type": "string", "name": "content", "description": "要记住的信息内容。用自然语言描述，尽量包含主语、谓语、宾语等完整语义。"},
+                    {"type": "string", "name": "knowledge_type", "description": "知识类型：factual=事实型事实，narrative=叙事型描述，structured=结构化信息，auto=自动判断。默认 auto。"},
+                    {"type": "number", "name": "importance", "description": "重要性 1-10。10 表示极其重要，5 表示一般，1 表示低优先级。默认 5。"},
+                ],
+                desc=MEMORIZE_TOOL_DEFINITION["function"]["description"],
+                func_obj=handler,
             )
             logger.info("[echoer] active_memory tool registered: memorize")
         except (ImportError, AttributeError):
@@ -328,9 +334,8 @@ class MemorixPlugin(Star):
     @filter.on_llm_request(priority=40)
     async def on_llm_request(self, event: AstrMessageEvent, req):
         scope_key = self._resolve_scope(event)
-        # Track for active memory tool routing
-        self._active_scope_key = scope_key
-        self._active_event = event
+        _active_scope_key_var.set(scope_key)
+        _active_event_var.set(event)
         try:
             await build_and_inject_memory(
                 event=event,

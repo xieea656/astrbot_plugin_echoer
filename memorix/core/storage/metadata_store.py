@@ -5,7 +5,6 @@
 """
 
 import sqlite3
-import pickle
 import json
 import uuid
 from datetime import datetime
@@ -1124,7 +1123,7 @@ class MetadataStore:
                 vector_index,
                 now,
                 now,
-                pickle.dumps(metadata or {}),
+                json.dumps(metadata or {}, ensure_ascii=False),
                 source,
                 word_count,
                 normalized_time.get("event_time"),
@@ -1207,7 +1206,7 @@ class MetadataStore:
                 name,
                 vector_index,
                 now,
-                pickle.dumps(metadata or {}),
+                json.dumps(metadata or {}, ensure_ascii=False),
             ))
             
             logger.debug(f"添加实体: {name} ({hash_value[:8]})")
@@ -1299,7 +1298,7 @@ class MetadataStore:
                 confidence,
                 now,
                 source_paragraph, # 这里的 source_paragraph 仅作为 "首次发现地" 记录，也可留空
-                pickle.dumps(metadata or {}),
+                json.dumps(metadata or {}, ensure_ascii=False),
             ))
             self._conn.commit()
             
@@ -2353,6 +2352,26 @@ class MetadataStore:
             self._conn.rollback()
             return None
 
+    def restore_entity(self, hash_value: str) -> Optional[Dict[str, Any]]:
+        """恢复实体：从软删除状态恢复实体并清空 deleted_at。"""
+        cursor = self._conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE entities SET is_deleted=0, deleted_at=NULL WHERE hash=?",
+                (hash_value,),
+            )
+            self._conn.commit()
+            if cursor.rowcount > 0:
+                cursor.execute("SELECT * FROM entities WHERE hash=?", (hash_value,))
+                row = cursor.fetchone()
+                if row:
+                    return self._row_to_dict(row, "entity")
+            return None
+        except Exception as e:
+            logger.error(f"恢复实体失败: {hash_value} - {e}")
+            self._conn.rollback()
+            return None
+
     def restore_relation(self, hash_value: str) -> Optional[Dict[str, Any]]:
         """兼容旧调用名：恢复关系。"""
         return self.restore_relation_metadata(hash_value)
@@ -2380,7 +2399,7 @@ class MetadataStore:
              # 是否需要解码元数据？是的，与普通行相同
              if "metadata" in d and d["metadata"]:
                  try:
-                     d["metadata"] = pickle.loads(d["metadata"])
+                     d["metadata"] = json.loads(d["metadata"])
                  except Exception:
                      d["metadata"] = {}
              data.append(d)
@@ -2396,7 +2415,7 @@ class MetadataStore:
         d = dict(row)
         if "metadata" in d and d["metadata"]:
              try:
-                 d["metadata"] = pickle.loads(d["metadata"])
+                 d["metadata"] = json.loads(d["metadata"])
              except Exception:
                  d["metadata"] = {}
         return d
@@ -2497,10 +2516,9 @@ class MetadataStore:
         """
         d = dict(row)
 
-        # 解码pickle字段
         if "metadata" in d and d["metadata"]:
             try:
-                d["metadata"] = pickle.loads(d["metadata"])
+                d["metadata"] = json.loads(d["metadata"])
             except Exception:
                 d["metadata"] = {}
 

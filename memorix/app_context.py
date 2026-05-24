@@ -19,7 +19,7 @@ from .amemorix.settings import DEFAULT_CONFIG, AppSettings
 from .amemorix.task_manager import TaskManager
 from .providers import AstrBotProviderBridge
 
-_SCOPE_DIR_PATTERN = re.compile(r"[^0-9A-Za-z._-]+")
+_SCOPE_DIR_PATTERN = re.compile(r"[^0-9A-Za-z:._-]+")
 
 
 def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -126,7 +126,7 @@ class ScopeRuntimeManager:
     @staticmethod
     def _sanitize_scope_dirname(scope_key: str) -> str:
         text = str(scope_key or "default").strip()
-        text = text.replace("/", "_").replace("\\", "_").replace(":", "_")
+        text = text.replace("/", "_").replace("\\", "_")
         text = re.sub(r"\s+", "_", text)
         text = _SCOPE_DIR_PATTERN.sub("_", text)
         text = text.strip("._")
