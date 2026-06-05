@@ -16,7 +16,7 @@ class MemorixEvent:
     group_id: str
     message_id: str
     message_text: str
-    timestamp: int
+    timestamp: float
 
 
 class AstrbotEventAdapter:
@@ -31,7 +31,7 @@ class AstrbotEventAdapter:
         group_id = str(getattr(event, "get_group_id", lambda: "")() or "")
         message_id = str(getattr(message_obj, "message_id", "") or "")
         message_text = str(getattr(event, "message_str", "") or "").strip()
-        timestamp = int(getattr(message_obj, "timestamp", 0) or 0)
+        timestamp = float(getattr(message_obj, "timestamp", 0) or 0)
         return MemorixEvent(
             scope_key=scope_key,
             platform=platform,

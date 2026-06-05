@@ -87,7 +87,7 @@ class TaskManager:
     def _auto_summary_context_length(self) -> int:
         return max(1, int(self.ctx.get_config("summarization.context_length", 50) or 50))
 
-    def _count_new_transcript_messages(
+    async def _count_new_transcript_messages(
         self,
         *,
         session_id: str,
@@ -97,27 +97,28 @@ class TaskManager:
         if conn is None or not session_id:
             return 0, None
 
-        cursor = conn.cursor()
-        if last_message_created_at is None:
-            cursor.execute(
-                """
-                SELECT COUNT(*), MAX(created_at)
-                FROM transcript_messages
-                WHERE session_id = ?
-                """,
-                (str(session_id),),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT COUNT(*), MAX(created_at)
-                FROM transcript_messages
-                WHERE session_id = ? AND created_at > ?
-                """,
-                (str(session_id), float(last_message_created_at)),
-            )
-        row = cursor.fetchone() or (0, None)
-        return int(row[0] or 0), (float(row[1]) if row[1] is not None else None)
+        async with self.ctx.metadata_store._async_lock:
+            cursor = conn.cursor()
+            if last_message_created_at is None:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*), MAX(created_at)
+                    FROM transcript_messages
+                    WHERE session_id = ?
+                    """,
+                    (str(session_id),),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*), MAX(created_at)
+                    FROM transcript_messages
+                    WHERE session_id = ? AND created_at > ?
+                    """,
+                    (str(session_id), float(last_message_created_at)),
+                )
+            row = cursor.fetchone() or (0, None)
+            return int(row[0] or 0), (float(row[1]) if row[1] is not None else None)
 
     async def maybe_enqueue_auto_summary(self, *, session_id: str) -> Dict[str, Any]:
         sid = str(session_id or "").strip()
@@ -153,7 +154,7 @@ class TaskManager:
             except (TypeError, ValueError):
                 pass
 
-        new_message_count, last_message_created_at = self._count_new_transcript_messages(
+        new_message_count, last_message_created_at = await self._count_new_transcript_messages(
             session_id=sid,
             last_message_created_at=summary_state.get("last_message_created_at"),
         )
@@ -465,10 +466,11 @@ class TaskManager:
         revive_boost = float(self.ctx.get_config("memory.revive_boost_weight", 0.5) or 0.5)
         auto_protect = float(self.ctx.get_config("memory.auto_protect_ttl_hours", 24.0) or 24.0) * 3600.0
 
-        cursor = self.ctx.metadata_store._conn.cursor()
-        placeholders = ",".join(["?"] * len(hashes))
-        cursor.execute(f"SELECT hash, subject, object FROM relations WHERE hash IN ({placeholders})", hashes)
-        relation_info = {str(row[0]): (str(row[1]), str(row[2])) for row in cursor.fetchall()}
+        async with self.ctx.metadata_store._async_lock:
+            cursor = self.ctx.metadata_store._conn.cursor()
+            placeholders = ",".join(["?"] * len(hashes))
+            cursor.execute(f"SELECT hash, subject, object FROM relations WHERE hash IN ({placeholders})", hashes)
+            relation_info = {str(row[0]): (str(row[1]), str(row[2])) for row in cursor.fetchall()}
 
         hashes_to_reinforce: List[str] = []
         hashes_to_revive: List[str] = []

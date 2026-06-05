@@ -41,9 +41,15 @@ def _resolve_vector_dimension(settings: AppSettings, vectors_dir: Path) -> int:
                 with metadata_path.open("r") as f:
                     data = json.load(f)
             else:
+                import os
                 import pickle
-                with metadata_path.open("rb") as f:
-                    data = pickle.load(f)
+                import stat
+                st = metadata_path.stat()
+                if st.st_uid != os.getuid() or st.st_mode & stat.S_IWOTH:
+                    logger.warning("Skipping untrusted pickle file: %s", metadata_path)
+                else:
+                    with metadata_path.open("rb") as f:
+                        data = pickle.load(f)
             dim = _safe_int(data.get("dimension"), 0)
             if dim > 0:
                 return dim

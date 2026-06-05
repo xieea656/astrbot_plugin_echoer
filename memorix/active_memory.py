@@ -75,8 +75,8 @@ def make_memorize_handler(scope_key_getter, runtime_manager: Any, event_getter):
 
                 adapted = AstrbotEventAdapter.from_event(event, scope_key)
                 source = f"active_memory:{adapted.platform}:{adapted.session_id}"
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[echoer] active_memory event adaptation failed: %s", exc)
 
         try:
             import_service = ImportService(ctx)

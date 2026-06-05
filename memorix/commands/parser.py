@@ -15,9 +15,7 @@ def parse_tail(raw_text: str, sub_cmd: str) -> str:
         if matched:
             break
     matched, text = _consume_head_token(text, sub_cmd)
-    if matched:
-        return text
-    return text
+    return text if matched else ""
 
 
 def parse_tail_tokens(raw_text: str, sub_cmd: str) -> list[str]:

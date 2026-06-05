@@ -4,6 +4,7 @@
 基于SQLite的元数据管理，存储段落、实体、关系等信息。
 """
 
+import asyncio
 import sqlite3
 import json
 import uuid
@@ -46,6 +47,7 @@ class MetadataStore:
         self.data_dir = Path(data_dir) if data_dir else None
         self.db_name = db_name
         self._conn: Optional[sqlite3.Connection] = None
+        self._async_lock = asyncio.Lock()
         self._is_initialized = False
         self._db_path: Optional[Path] = None
 

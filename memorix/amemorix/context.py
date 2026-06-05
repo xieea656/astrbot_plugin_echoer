@@ -6,7 +6,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 from astrbot.api import logger
 from ..core.embedding.api_adapter import EmbeddingAPIAdapter
@@ -31,7 +31,7 @@ class AppContext:
     data_dir: Path
     config: Dict[str, Any]
     provider_bridge: Any = None
-    reinforce_buffer: Set[str] = field(default_factory=set)
+    reinforce_buffer: Dict[str, None] = field(default_factory=dict)
     memory_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _runtime_auto_save: Optional[bool] = None
     _request_dedup_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -168,10 +168,12 @@ class AppContext:
         limit = max(1, limit)
 
         async with self.memory_lock:
-            self.reinforce_buffer.update(str(h).strip() for h in relation_hashes if str(h).strip())
+            for h in relation_hashes:
+                key = str(h).strip()
+                if key:
+                    self.reinforce_buffer[key] = None
             if len(self.reinforce_buffer) > limit:
-                # 超限时裁剪最旧未知，采用稳定切片确保缓冲区有界。
-                keep = set(list(self.reinforce_buffer)[:limit])
+                keep = dict(list(self.reinforce_buffer.items())[:limit])
                 self.reinforce_buffer = keep
 
     async def save_all(self) -> None:

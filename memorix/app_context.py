@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 import hashlib
 import re
 from dataclasses import dataclass
@@ -15,21 +14,11 @@ from astrbot.api import logger
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .amemorix.bootstrap import build_context
-from .amemorix.settings import DEFAULT_CONFIG, AppSettings
+from .amemorix.settings import DEFAULT_CONFIG, AppSettings, _deep_merge
 from .amemorix.task_manager import TaskManager
 from .providers import AstrBotProviderBridge
 
 _SCOPE_DIR_PATTERN = re.compile(r"[^0-9A-Za-z:._-]+")
-
-
-def _deep_merge(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
-    out = copy.deepcopy(base)
-    for key, value in (patch or {}).items():
-        if isinstance(value, dict) and isinstance(out.get(key), dict):
-            out[key] = _deep_merge(out[key], value)
-        else:
-            out[key] = value
-    return out
 
 
 class LocalEmbeddingAdapter:
@@ -265,7 +254,6 @@ class ScopeRuntimeManager:
     async def close_all(self) -> None:
         async with self._lock:
             runtimes = list(self._runtimes.values())
-            self._runtimes.clear()
 
         logger.info("close all runtimes: count=%s", len(runtimes))
         for runtime in runtimes:
@@ -277,4 +265,7 @@ class ScopeRuntimeManager:
                 await runtime.context.close()
             except Exception:
                 logger.warning("close context failed: scope=%s", runtime.scope_key, exc_info=True)
+
+        async with self._lock:
+            self._runtimes.clear()
         logger.info("all runtimes closed")
