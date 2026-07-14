@@ -25,7 +25,7 @@ from .memorix.profile_manager import ProfileManager
 from .memorix.scope_router import ScopeRouter
 from .memorix.services import IngestService, MemoryService, QueryService, SummaryService
 from .memorix.tasks.maintenance_scheduler import MaintenanceScheduler
-from .memorix.webui import EmbeddedWebUIServer
+from .page_api import EchoerPageApi
 
 
 _active_scope_key_var: contextvars.ContextVar[str] = contextvars.ContextVar("active_scope_key", default="")
@@ -51,7 +51,7 @@ class MemorixPlugin(Star):
         self.profile_manager = ProfileManager(self.runtime_manager)
         self.summary_service = SummaryService(self.runtime_manager)
         self.maintenance_scheduler = MaintenanceScheduler(runtime_manager=self.runtime_manager)
-        self.webui_server = EmbeddedWebUIServer(self.runtime_manager, self.config)
+        self.page_api = None
 
 
     async def initialize(self):
@@ -93,23 +93,19 @@ class MemorixPlugin(Star):
         except Exception as exc:
             logger.warning("[echoer] active_memory tool registration failed: %s", exc)
 
-        if bool(self.config.get("webui", {}).get("enabled", True)):
-            try:
-                ui_scope = self._resolve_webui_scope()
-                if ui_scope:
-                    state = await self.webui_server.start(scope_key=ui_scope)
-                    if state.url:
-                        logger.info("[echoer] WebUI started at %s (scope=%s)", state.url, state.scope_key)
-                else:
-                    logger.info("[echoer] WebUI start deferred until a concrete scope becomes active")
-            except Exception as exc:
-                logger.error("[echoer] WebUI start failed: %s", exc, exc_info=True)
+        # Register plugin page API (AstrBot built-in dashboard)
+        try:
+            self.page_api = EchoerPageApi(self)
+            self.page_api.register_routes()
+            logger.info("[echoer] plugin page API registered")
+        except Exception as exc:
+            logger.warning("[echoer] page API registration failed: %s", exc)
         logger.info("[echoer] initialize done")
 
     async def terminate(self):
         logger.info("[echoer] terminate start")
         try:
-            self.webui_server.stop()
+            pass  # page API auto-managed by AstrBot
         except Exception:
             pass
         await self.runtime_manager.close_all()
@@ -131,33 +127,8 @@ class MemorixPlugin(Star):
         return ""
 
     async def _ensure_webui_scope_ready(self, scope_key: str) -> None:
-        if not bool(self.config.get("webui", {}).get("enabled", True)):
-            return
-
-        configured = str(self.config.get("webui", {}).get("scope", "auto") or "auto").strip().lower()
-        if configured not in {"", "auto", "current", "event"}:
-            return
-
-        target_scope = str(scope_key or "").strip()
-        if not target_scope:
-            return
-
-        state = self.webui_server.state
-        if not state.url:
-            await self.webui_server.start(scope_key=target_scope)
-            logger.info("[echoer] WebUI auto-started at %s (scope=%s)", self.webui_server.state.url, self.webui_server.state.scope_key)
-            return
-
-        known_scopes = self.runtime_manager.get_known_scopes()
-        current_scope = str(state.scope_key or "").strip()
-        if current_scope in known_scopes:
-            return
-        if len(known_scopes) != 1 or target_scope not in known_scopes or current_scope == target_scope:
-            return
-
-        logger.info("[echoer] auto-switching webui scope: from=%s to=%s", current_scope or "<deferred>", target_scope)
-        self.webui_server.stop()
-        await self.webui_server.start(scope_key=target_scope)
+        # page API is auto-managed by AstrBot dashboard; no-op
+        return
 
     @staticmethod
     def _event_ctx_text(event: AstrMessageEvent, scope_key: Optional[str] = None) -> str:
@@ -287,15 +258,7 @@ class MemorixPlugin(Star):
             timestamp=adapted.timestamp,
             time_meta={"event_time": adapted.timestamp} if adapted.timestamp else None,
         )
-        try:
-            await self._ensure_webui_scope_ready(adapted.scope_key)
-        except Exception as exc:
-            logger.warning(
-                "[echoer] ensure webui scope ready failed: %s (%s)",
-                exc,
-                self._event_ctx_text(event, adapted.scope_key),
-                exc_info=True,
-            )
+        # page API auto-manages scope via AstrBot dashboard
         logger.debug(
             "[echoer] ingested role=%s chars=%s %s",
             role,
@@ -448,8 +411,8 @@ class MemorixPlugin(Star):
             "scope": scope_key,
             "known_scopes": self.runtime_manager.get_known_scopes(),
             "webui": {
-                "url": self.webui_server.state.url,
-                "scope": self.webui_server.state.scope_key,
+                "url": "/plugin/page/astrbot_plugin_echoer/记忆面板/index.html",
+                "scope": "auto (AstrBot dashboard)",
             },
             "scheduler": scheduler,
             "memory": data,
@@ -780,24 +743,6 @@ class MemorixPlugin(Star):
             yield event.plain_result("WebUI 已禁用")
             return
         self._log_cmd(event, "ui")
-        try:
-            desired_scope = self._resolve_scope(event)
-            if self.webui_server.state.url and self.webui_server.state.scope_key != desired_scope:
-                logger.info(
-                    "[echoer] switching webui scope: from=%s to=%s",
-                    self.webui_server.state.scope_key,
-                    desired_scope,
-                )
-                self.webui_server.stop()
-
-            if not self.webui_server.state.url:
-                state = await self.webui_server.start(scope_key=desired_scope)
-                if not state.url:
-                    yield event.plain_result("WebUI 启动失败")
-                    return
-            yield event.plain_result(
-                f"Echoer WebUI: {self.webui_server.state.url} (scope={self.webui_server.state.scope_key})"
-            )
-        except Exception as exc:
-            logger.error("[echoer] mem ui failed: %s", exc, exc_info=True)
-            yield event.plain_result(f"WebUI 启动失败: {exc}")
+        yield event.plain_result(
+            "Echoer WebUI: 打开 AstrBot 管理后台 -> 插件 -> 记忆面板"
+        )

@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>记忆面板 · Echoer</title>
+<style>
+:root{--bg:#0f1117;--card:#161822;--border:#252836;--text:#e1e4ed;--muted:#6b7088;--accent:#7c8cf8;--danger:#f87171;--warn:#fbbf24}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+header{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:0;z-index:10}
+header h1{font-size:1.1rem;font-weight:600}
+nav{display:flex;gap:.25rem}
+nav button{padding:.5rem .9rem;border:none;border-radius:6px;background:transparent;color:var(--muted);font-size:.82rem;cursor:pointer;transition:all .15s}
+nav button:hover,nav button.on{background:var(--border);color:var(--text)}
+main{padding:1.5rem;max-width:1100px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.2rem;margin-bottom:1rem}
+.card h2{font-size:1rem;font-weight:600;margin-bottom:.8rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center}
+.stat .num{font-size:1.6rem;font-weight:700;color:var(--accent)}
+.stat .label{font-size:.75rem;color:var(--muted);margin-top:.25rem}
+input,button{font-family:inherit}
+input[type=text],input[type=search]{width:100%;padding:.6rem .8rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:.85rem}
+input:focus{outline:none;border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border:none;border-radius:6px;font-size:.8rem;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:.3rem .65rem;font-size:.72rem}
+.row{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
+.list-item{display:flex;justify-content:space-between;align-items:flex-start;padding:.75rem 0;border-bottom:1px solid var(--border);gap:1rem}
+.list-item:last-child{border-bottom:none}
+.list-item .content{flex:1;font-size:.85rem;word-break:break-word}
+.list-item .meta{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.35rem}
+.list-item .hash{font-size:.65rem;color:var(--muted);font-family:monospace}
+.list-item .score{font-size:.72rem;color:var(--accent)}
+.loading{text-align:center;padding:3rem;color:var(--muted)}
+.error{background:rgba(248,113,113,.1);border:1px solid var(--danger);color:var(--danger);padding:.75rem 1rem;border-radius:6px;margin-bottom:1rem;font-size:.82rem}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-family:monospace;background:var(--border);margin:1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧠 Echoer 记忆面板</h1>
+  <nav id="tabs">
+    <button data-tab="overview" class="on">概览</button>
+    <button data-tab="memories">记忆</button>
+    <button data-tab="entities">实体</button>
+    <button data-tab="persons">人物</button>
+  </nav>
+</header>
+
+<main>
+  <div id="error"></div>
+
+  <!-- Overview -->
+  <div class="tab-content active" id="tab-overview">
+    <div id="stats" class="stats"></div>
+    <div class="card" id="scopes-card"></div>
+  </div>
+
+  <!-- Memories -->
+  <div class="tab-content" id="tab-memories">
+    <div class="row">
+      <input type="search" id="mem-q" placeholder="搜索记忆..." style="flex:1">
+      <select id="mem-scope" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.55rem;border-radius:6px;font-size:.82rem"></select>
+      <button class="btn btn-primary" id="mem-search">搜索</button>
+    </div>
+    <div id="mem-list">加载中...</div>
+  </div>
+
+  <!-- Entities -->
+  <div class="tab-content" id="tab-entities">
+    <div id="entity-list">加载中...</div>
+  </div>
+
+  <!-- Persons -->
+  <div class="tab-content" id="tab-persons">
+    <div id="person-list">加载中...</div>
+  </div>
+</main>
+
+<script>
+const API = '/api/plugin/astrbot_plugin_echoer';
+
+let activeScope = '';
+
+async function api(path, opts) {
+  const res = await fetch(API + path, opts);
+  if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+  return res.json();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.innerHTML = msg ? `<div class="error">${msg}</div>` : '';
+  if (msg) setTimeout(() => el.innerHTML = '', 5000);
+}
+
+// ---- Navigation ----
+document.getElementById('tabs').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  if (btn.dataset.tab === 'entities') loadEntities();
+  if (btn.dataset.tab === 'persons') loadPersons();
+});
+
+// ---- Overview ----
+async function loadOverview() {
+  try {
+    const d = await api('/overview');
+    if (!d.success) return showError(d.message);
+    const data = d.data;
+    activeScope = data.scopes[0]?.scope || '';
+
+    // Stats
+    const stats = document.getElementById('stats');
+    let totalNodes = 0, totalVectors = 0;
+    data.scopes.forEach(s => { totalNodes += s.nodes||0; totalVectors += s.vectors||0; });
+    stats.innerHTML = `
+      <div class="stat"><div class="num">${data.scopes.length}</div><div class="label">作用域</div></div>
+      <div class="stat"><div class="num">${totalNodes}</div><div class="label">图节点</div></div>
+      <div class="stat"><div class="num">${totalVectors}</div><div class="label">向量</div></div>
+      <div class="stat"><div class="num">${data.mode || '-'}</div><div class="label">隔离模式</div></div>
+    `;
+
+    // Scope details
+    let html = '<h2>作用域</h2>';
+    data.scopes.forEach(s => {
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.85rem">
+        <span><strong>${s.scope}</strong></span>
+        <span style="color:var(--muted);font-size:.75rem">${s.data_dir}</span>
+        <span style="color:var(--muted);font-size:.75rem">节点=${s.nodes||0} 向量=${s.vectors||0}</span>
+      </div>`;
+    });
+    document.getElementById('scopes-card').innerHTML = html;
+
+    // Populate scope selector
+    const sel = document.getElementById('mem-scope');
+    sel.innerHTML = data.scopes.map(s => `<option value="${s.scope}">${s.scope}</option>`).join('');
+  } catch (e) { showError(e.message); }
+}
+
+// ---- Memories ----
+async function loadMemories(q, scope) {
+  const list = document.getElementById('mem-list');
+  list.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const params = new URLSearchParams({ limit: 50, scope: scope || activeScope });
+    if (q) params.set('q', q);
+    const d = await api(`/memories?${params}`);
+    if (!d.success) { list.innerHTML = `<div class="error">${d.message}</div>`; return; }
+    if (!d.data.items.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">无结果</div>'; return; }
+    let html = '';
+    d.data.items.forEach(item => {
+      html += `<div class="list-item">
+        <div class="content">${escapeHtml(item.content)}
+          <div class="tag">${item.type||'paragraph'}</div>
+        </div>
+        <div class="meta">
+          <span class="hash">${item.hash?.substring(0,16)}...</span>
+          ${item.score ? `<span class="score">${(item.score*100).toFixed(0)}%</span>` : ''}
+          <div>
+            <button class="btn btn-primary btn-sm" onclick="protectMem('${item.hash}')">保护</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteMem('${item.hash}')">删</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html;
+  } catch (e) { list.innerHTML = `<div class="error">${e.message}</div>`; }
+}
+
+async function protectMem(hash) {
+  try {
+    const d = await api('/memory/protect', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({hash, scope: activeScope, hours: 24})
+    });
+    alert(d.success ? '已保护 24h' : d.message);
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteMem(hash) {
+  if (!confirm('确认删除？')) return;
+  try {
+    const d = await api('/memory/delete', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({hash, scope: activeScope})
+    });
+    alert(d.success ? '已删除' : d.message);
+    loadMemories();
+  } catch(e) { alert(e.message); }
+}
+
+// ---- Entities ----
+async function loadEntities() {
+  const list = document.getElementById('entity-list');
+  list.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const d = await api(`/entities?scope=${activeScope}`);
+    if (!d.success) { list.innerHTML = `<div class="error">${d.message}</div>`; return; }
+    if (!d.data.items?.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">无实体</div>'; return; }
+    let html = '';
+    d.data.items.forEach(item => {
+      const name = typeof item === 'string' ? item : (item.name || item.label || JSON.stringify(item).substring(0,60));
+      html += `<div class="card" style="padding:.75rem 1rem;font-size:.85rem">${escapeHtml(String(name))}</div>`;
+    });
+    list.innerHTML = html;
+  } catch(e) { list.innerHTML = `<div class="error">${e.message}</div>`; }
+}
+
+// ---- Persons ----
+async function loadPersons() {
+  const list = document.getElementById('person-list');
+  list.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const d = await api(`/persons?scope=${activeScope}`);
+    if (!d.success) { list.innerHTML = `<div class="error">${d.message}</div>`; return; }
+    const items = d.data?.items || d.data?.persons || [];
+    if (!items.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">无人物记录</div>'; return; }
+    let html = '';
+    items.forEach(item => {
+      const name = item.person_name || item.person_id || item.id || 'Unknown';
+      const profile = item.profile_text || item.description || '';
+      html += `<div class="card" style="padding:1rem">
+        <strong>${escapeHtml(String(name))}</strong>
+        ${profile ? `<p style="font-size:.8rem;color:var(--muted);margin-top:.4rem">${escapeHtml(String(profile).substring(0,200))}</p>` : ''}
+      </div>`;
+    });
+    list.innerHTML = html;
+  } catch(e) { list.innerHTML = `<div class="error">${e.message}</div>`; }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Init
+document.getElementById('mem-search').addEventListener('click', () => {
+  loadMemories(document.getElementById('mem-q').value, document.getElementById('mem-scope').value);
+});
+loadOverview();
+loadMemories();
+</script>
+</body>
+</html>
