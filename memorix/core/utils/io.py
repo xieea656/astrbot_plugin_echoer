@@ -50,7 +50,7 @@ def atomic_write(file_path: Union[str, Path], mode: str = "w", encoding: str = N
         if tmp_path.exists():
             try:
                 os.remove(tmp_path)
-            except:
+            except OSError:
                 pass
         raise e
 
@@ -79,6 +79,6 @@ def atomic_save_path(file_path: Union[str, Path]):
         if Path(tmp_path).exists():
             try:
                 os.remove(tmp_path)
-            except:
+            except OSError:
                 pass
         raise e

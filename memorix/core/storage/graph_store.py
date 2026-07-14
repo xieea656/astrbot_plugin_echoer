@@ -1262,7 +1262,7 @@ class GraphStore:
         if self._modification_mode == GraphModificationMode.INCREMENTAL:
              try:
                  self._adjacency = self._adjacency.tolil()
-             except:
+             except Exception:
                  pass
 
     @property
