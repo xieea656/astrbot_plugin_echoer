@@ -6,6 +6,7 @@ author: 爱丽丝
 repo: https://github.com/xieea656/astrbot_plugin_echoer
 support_platforms:
   - aiocqhttp
+  - qq_official
   - telegram
   - discord
 astrbot_version: ">=4.16"
